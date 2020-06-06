@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	tf "github.com/tensorflow/tensorflow/tensorflow/go"
 	"io/ioutil"
 	"log"
 	"math"
@@ -12,6 +11,10 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/middleware"
+	tf "github.com/tensorflow/tensorflow/tensorflow/go"
 )
 
 const (
@@ -185,11 +188,6 @@ func predict(w http.ResponseWriter, r *http.Request) {
 
 	start := time.Now()
 
-	if r.Method != "POST" {
-		handleError(w, http.StatusMethodNotAllowed)
-		return
-	}
-
 	// Read only the first 1024 bytes of the request body.
 	// Expect HTTP 400 (Bad Request) for larger requests.
 	body := http.MaxBytesReader(w, r.Body, 2<<9)
@@ -314,22 +312,21 @@ func main() {
 		return
 	}
 
-	// Define multiplexer for endpoints
-	mux := http.NewServeMux()
-	mux.Handle("/", logging(
-		http.HandlerFunc(
-			func(w http.ResponseWriter, r *http.Request) {
-				handleError(w, 404)
-			},
-		),
-	))
-	mux.Handle("/health", logging(http.HandlerFunc(health)))
-	mux.Handle("/predict", logging(http.HandlerFunc(predict)))
+	// A righteous mux
+	r := chi.NewRouter()
+	r.Use(middleware.RequestID)
+	r.Use(middleware.RealIP)
+	r.Use(middleware.Logger)
+	r.Use(middleware.NoCache)
+	r.Use(middleware.Recoverer)
+	r.Use(middleware.Timeout(5 * time.Second))
+	r.Get("/health", health)
+	r.Post("/predict", predict)
 
 	// Start http server
 	server := &http.Server{
 		Addr:         ":5000",
-		Handler:      mux,
+		Handler:      r,
 		ErrorLog:     stderr,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
