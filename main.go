@@ -238,10 +238,6 @@ func handleError(w http.ResponseWriter, code int) {
 // Endpoint for health checks by haproxy, etc.
 func health(w http.ResponseWriter, r *http.Request) {
 
-	if r.Method != "GET" {
-		handleError(w, http.StatusMethodNotAllowed)
-	}
-
 	w.WriteHeader(http.StatusOK)
 	encoder := json.NewEncoder(w)
 	encoder.SetIndent("", "\t")
