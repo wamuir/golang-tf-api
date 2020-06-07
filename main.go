@@ -27,11 +27,11 @@ type (
 		Identifier    string            `json:"id,omitempty"`
 		Type          string            `json:"type,omitempty"`
 		Attributes    map[string]string `json:"attributes,omitempty"`
-		Meta          Meta              `json:"meta,omitempty"`
+		Meta          *Meta             `json:"meta,omitempty"`
 		Relationships map[string]Result `json:"relationships,omitempty"`
 	}
 	Meta struct {
-		Probability float32 `json:"association"`
+		Probability float32 `json:"association,omitempty"`
 	}
 	Model struct {
 		*tf.SavedModel
@@ -122,7 +122,7 @@ func (m Model) predict(input []string) ([]Result, error) {
 			var class = Class{
 				Type:       "product-service-codes",
 				Identifier: classList[j].Identifier,
-				Meta:       Meta{Probability: p},
+				Meta:       &Meta{Probability: p},
 			}
 			result.Data[j] = class
 		}
