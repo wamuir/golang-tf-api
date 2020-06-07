@@ -318,6 +318,12 @@ func main() {
 	r.Use(middleware.Timeout(5 * time.Second))
 	r.Get("/health", health)
 	r.Post("/predict", predict)
+	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
+		handleError(w, 404)
+	})
+	r.MethodNotAllowed(func(w http.ResponseWriter, r *http.Request) {
+		handleError(w, 405)
+	})
 
 	// Start http server
 	server := &http.Server{
