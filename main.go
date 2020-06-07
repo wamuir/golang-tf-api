@@ -24,9 +24,14 @@ const (
 
 type (
 	Class struct {
-		Identifier  string  `json:"id"`
-		Type        string  `json:"type,omitempty"`
-		Probability float32 `json:"pr"`
+		Identifier    string            `json:"id,omitempty"`
+		Type          string            `json:"type,omitempty"`
+		Attributes    map[string]string `json:"attributes,omitempty"`
+		Meta          Meta              `json:"meta,omitempty"`
+		Relationships map[string]Result `json:"relationships,omitempty"`
+	}
+	Meta struct {
+		Probability float32 `json:"association"`
 	}
 	Model struct {
 		*tf.SavedModel
@@ -35,8 +40,8 @@ type (
 		Input string `json:"input"`
 	}
 	Result struct {
-		Classes []Class            `json:"classes"`
-		Meta    map[string]float32 `json:"meta,omitempty"`
+		Data []Class            `json:"data"`
+		Meta map[string]float32 `json:"meta,omitempty"`
 	}
 )
 
@@ -49,15 +54,15 @@ var (
 )
 
 func (r Result) Len() int {
-	return len(r.Classes)
+	return len(r.Data)
 }
 
 func (r Result) Less(i, j int) bool {
-	return r.Classes[i].Probability > r.Classes[j].Probability
+	return r.Data[i].Meta.Probability > r.Data[j].Meta.Probability
 }
 
 func (r Result) Swap(i, j int) {
-	r.Classes[i], r.Classes[j] = r.Classes[j], r.Classes[i]
+	r.Data[i], r.Data[j] = r.Data[j], r.Data[i]
 }
 
 // Obtain probability estimates from TF model
@@ -108,17 +113,18 @@ func (m Model) predict(input []string) ([]Result, error) {
 
 		// Result for the result set, including meta stats
 		var result Result = Result{
-			Classes: make([]Class, len(classList)),
-			Meta:    m.stats(predictions, i),
+			Data: make([]Class, len(classList)),
+			Meta: m.stats(predictions, i),
 		}
 
 		// Include class identifiers with probability estimates
 		for j, p := range predictions.Value().([][]float32)[i] {
 			var class = Class{
-				Identifier:  classList[j].Identifier,
-				Probability: p,
+				Type:       "product-service-codes",
+				Identifier: classList[j].Identifier,
+				Meta:       Meta{Probability: p},
 			}
-			result.Classes[j] = class
+			result.Data[j] = class
 		}
 
 		// Sort the classes in place, ordering by probability desc
@@ -184,7 +190,10 @@ func encode(s string) [maxLength]float32 {
 // Prediction endpoint
 func predict(w http.ResponseWriter, r *http.Request) {
 
-	var request Request
+	var (
+		content interface{}
+		request Request
+	)
 
 	start := time.Now()
 
@@ -207,18 +216,54 @@ func predict(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Negotiate content
+	switch r.Header.Get("Accept") {
+
+	case "application/vnd.api+json":
+
+		// Declare jsonapi mime in header
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("Content-Type", "application/vnd.api+json")
+
+		// Return results object
+		// JSON:API 1.0: https://jsonapi.org/
+		content = map[string]interface{}{
+			"data": Class{
+				Type: "searches",
+				Attributes: map[string]string{
+					"search-string": string(request.Input),
+				},
+				Relationships: map[string]Result{
+					"product-service-codes": results[0],
+				},
+			},
+		}
+
+	default:
+		// Declare application/json mime in header
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("Content-Type", "application/json")
+
+		// Return results object
+		// {"classes":[{"id":string,"pr":float32},...]}
+		data := make([]map[string]interface{}, len(results[0].Data))
+		for i, class := range results[0].Data {
+			data[i] = map[string]interface{}{
+				"id": class.Identifier,
+				"pr": class.Meta.Probability,
+			}
+		}
+		content = map[string]interface{}{"classes": data, "meta": results[0].Meta}
+	}
+
 	// Add server timing in header
 	duration := fmt.Sprintf("%.4f", time.Since(start).Seconds())
 	w.Header().Set("Server-Timing", "total;dur="+duration)
 
-	// Declare content type	in header
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.Header().Set("Content-Type", "application/json")
-
 	// Write the response
 	w.WriteHeader(http.StatusOK)
 	encoder := json.NewEncoder(w)
-	encoder.Encode(results[0])
+	encoder.Encode(content)
 	return
 }
 
