@@ -227,17 +227,7 @@ func predict(w http.ResponseWriter, r *http.Request) {
 
 		// Return results object
 		// JSON:API 1.0: https://jsonapi.org/
-		content = map[string]interface{}{
-			"data": Class{
-				Type: "searches",
-				Attributes: map[string]string{
-					"search-string": string(request.Input),
-				},
-				Relationships: map[string]Result{
-					"product-service-codes": results[0],
-				},
-			},
-		}
+		content = results[0]
 
 	default:
 		// Declare application/json mime in header
