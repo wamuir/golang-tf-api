@@ -203,8 +203,7 @@ func predict(w http.ResponseWriter, r *http.Request) {
 
 	// Unmarshal body into Request struct
 	decoder := json.NewDecoder(body)
-	err := decoder.Decode(&request)
-	if err != nil {
+	if err := decoder.Decode(&request); err != nil {
 		handleError(w, http.StatusBadRequest)
 		return
 	}
