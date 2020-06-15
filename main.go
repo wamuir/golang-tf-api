@@ -167,16 +167,16 @@ func (m Model) stats(p *tf.Tensor, idx int) map[string]float32 {
 	return meta
 }
 
-//
-func censor(f float64) float32 {
+// Censor a float if outside (-MaxFloat32, MaxFloat32)
+func censor(f64 float64) float32 {
 
-	switch {
-	case math.IsInf(f, 1):
+	switch f32 := float32(f64); {
+	case f32 > math.MaxFloat32:
 		return math.MaxFloat32
-	case math.IsInf(f, -1):
-		return math.SmallestNonzeroFloat32
+	case f32 < math.MaxFloat32:
+		return -math.MaxFloat32
 	default:
-		return float32(f)
+		return f32
 	}
 
 }
@@ -261,7 +261,10 @@ func predict(w http.ResponseWriter, r *http.Request) {
 				"pr": class.Meta.Probability,
 			}
 		}
-		content = map[string]interface{}{"classes": data, "meta": results[0].Meta}
+		content = map[string]interface{}{
+			"classes": data,
+			"meta":    results[0].Meta,
+		}
 
 	}
 
