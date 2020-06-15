@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -150,6 +151,7 @@ func (m Model) stats(p *tf.Tensor, idx int) map[string]float32 {
 	for i := range p32 {
 		var pk float64 = float64(p32[i]) + math.SmallestNonzeroFloat64
 		var qk float64 = float64(q32[i]) + math.SmallestNonzeroFloat64
+
 		gi += math.Pow(pk, 2)
 		re += pk * math.Log2(pk/qk)
 		se += pk * math.Log2(pk)
@@ -157,12 +159,26 @@ func (m Model) stats(p *tf.Tensor, idx int) map[string]float32 {
 
 	// 32-bit precision is more than sufficient for API
 	meta := map[string]float32{
-		"gini-impurity":    float32(1.00 - gi),
-		"relative-entropy": float32(re),
-		"shannon-entropy":  float32(-se),
+		"gini-impurity":    censor(1.00 - gi),
+		"relative-entropy": censor(re),
+		"shannon-entropy":  censor(-se),
 	}
 
 	return meta
+}
+
+//
+func censor(f float64) float32 {
+
+	switch {
+	case math.IsInf(f, 1):
+		return math.MaxFloat32
+	case math.IsInf(f, -1):
+		return math.SmallestNonzeroFloat32
+	default:
+		return float32(f)
+	}
+
 }
 
 // Encode input text
@@ -191,6 +207,7 @@ func encode(s string) [maxLength]float32 {
 func predict(w http.ResponseWriter, r *http.Request) {
 
 	var (
+		buf     bytes.Buffer
 		content interface{}
 		request Request
 	)
@@ -211,6 +228,7 @@ func predict(w http.ResponseWriter, r *http.Request) {
 	// Obtain predictions on the input
 	results, err := classifier.predict([]string{request.Input})
 	if err != nil {
+		stderr.Println(err)
 		handleError(w, http.StatusInternalServerError)
 		return
 	}
@@ -229,6 +247,7 @@ func predict(w http.ResponseWriter, r *http.Request) {
 		content = results[0]
 
 	default:
+
 		// Declare application/json mime in header
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Content-Type", "application/json")
@@ -243,16 +262,23 @@ func predict(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		content = map[string]interface{}{"classes": data, "meta": results[0].Meta}
+
 	}
 
 	// Add server timing in header
 	duration := fmt.Sprintf("%.4f", time.Since(start).Seconds())
 	w.Header().Set("Server-Timing", "total;dur="+duration)
 
+	encoder := json.NewEncoder(&buf)
+	if err := encoder.Encode(content); err != nil {
+		stderr.Println(err)
+		handleError(w, http.StatusInternalServerError)
+		return
+	}
+
 	// Write the response
 	w.WriteHeader(http.StatusOK)
-	encoder := json.NewEncoder(w)
-	encoder.Encode(content)
+	w.Write(buf.Bytes())
 	return
 }
 
