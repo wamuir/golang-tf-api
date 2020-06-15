@@ -130,7 +130,7 @@ func (m Model) predict(input []string) ([]Result, error) {
 		}
 
 		// Sort the classes in place, ordering by probability desc
-		sort.Sort(result)
+		sort.Stable(result)
 
 		// Rank
 		for k, _ := range result.Data {
