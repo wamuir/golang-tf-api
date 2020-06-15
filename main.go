@@ -32,6 +32,7 @@ type (
 		Relationships map[string]Result `json:"relationships,omitempty"`
 	}
 	Meta struct {
+		Rank        int     `json:"rank,omitempty"`
 		Probability float32 `json:"association,omitempty"`
 	}
 	Model struct {
@@ -130,6 +131,11 @@ func (m Model) predict(input []string) ([]Result, error) {
 
 		// Sort the classes in place, ordering by probability desc
 		sort.Sort(result)
+
+		// Rank
+		for k, _ := range result.Data {
+			result.Data[k].Meta.Rank = k + 1
+		}
 
 		// Add to results set
 		results[i] = result
