@@ -5,19 +5,29 @@ exported from tensorflow. The API binds to port 5000 by default, and
 inferences can be obtained by calling `/predict` such as:
 
 ```sh
-curl -XPOST -d'{"input":"portal gun"}' http://localhost:5000/predict
+curl -X POST -H 'Accept: application/vnd.api+json'                       \
+     -H 'Content-Type: application/vnd.api+json'                         \
+     -d '{                                                               \
+         "data":{                                                        \
+             "type": "descriptions",                                     \
+             "attributes": {                                             \
+                 "raw": "portal gun"                                     \
+             }                                                           \
+         }                                                               \
+     }'                                                                  \
+     -i 'http://localhost:5000/predict'
 ```
 
-This returns product service codes and probability estimates, such as:
+This returns classes and associated probability estimates, in the form of:
 
 ```json
 {
-    "classes":[
-        {"id":"string","pr":"float32"},
-        {"id":"string","pr":"float32"},
+    "data": [
+        {"id":"string", "type":"string", "meta":{"weight":"float32", "rank":"int"}},
+        {"id":"string", "type":"string", "meta":{"weight":"float32", "rank":"int"}},
         ...,
-        {"id":"string","pr":"float32"}
-    ],
+        {"id":"string", "type":"string", "meta":{"weight":"float32", "rank":"int"}},
+    ]
     "meta":{
         "gini-impurity":"float32",
         "relative-entropy":"float32",
@@ -26,5 +36,5 @@ This returns product service codes and probability estimates, such as:
 }
 ```
 
-With classes in the product service code taxonomy identified by `id`
-and sorted in descending order by corresponding probability (`pr`).
+With classes in the relevant classlist identified by `id` and sorted in descending
+order by corresponding probability (`weight`).
