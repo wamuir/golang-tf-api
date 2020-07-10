@@ -5,16 +5,9 @@ exported from tensorflow. The API binds to port 5000 by default, and
 inferences can be obtained by calling `/predict` such as:
 
 ```sh
-curl -X POST -H 'Accept: application/vnd.api+json'                       \
-     -H 'Content-Type: application/vnd.api+json'                         \
-     -d '{                                                               \
-         "data":{                                                        \
-             "type": "descriptions",                                     \
-             "attributes": {                                             \
-                 "raw": "portal gun"                                     \
-             }                                                           \
-         }                                                               \
-     }'                                                                  \
+curl -X POST -H 'Accept: application/vnd.api+json' \
+     -H 'Content-Type: application/vnd.api+json' \
+     -d '{"data":{"type": "descriptions", "attributes":{"raw": "portal gun"}}}' \
      -i 'http://localhost:5000/predict'
 ```
 
