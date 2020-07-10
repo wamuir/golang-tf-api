@@ -16,6 +16,7 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	tf "github.com/tensorflow/tensorflow/tensorflow/go"
+	"github.com/wamuir/go-jsonapi-core"
 )
 
 const (
@@ -24,47 +25,30 @@ const (
 )
 
 type (
-	Class struct {
-		Identifier    string            `json:"id,omitempty"`
-		Type          string            `json:"type,omitempty"`
-		Attributes    map[string]string `json:"attributes,omitempty"`
-		Meta          *Meta             `json:"meta,omitempty"`
-		Relationships map[string]Result `json:"relationships,omitempty"`
-	}
-	Meta struct {
-		Rank        int     `json:"rank,omitempty"`
-		Probability float32 `json:"association,omitempty"`
-	}
 	Model struct {
 		*tf.SavedModel
 	}
-	Request struct {
-		Input string `json:"input"`
-	}
-	Result struct {
-		Data []Class            `json:"data"`
-		Meta map[string]float32 `json:"meta,omitempty"`
-	}
+	Result []core.Resource
 )
 
 var (
 	classifier *Model
-	classList  []Class
+	classList  core.Collection
 	q          *tf.Tensor
 	stderr     *log.Logger
 	stdout     *log.Logger
 )
 
 func (r Result) Len() int {
-	return len(r.Data)
+	return len(r)
 }
 
 func (r Result) Less(i, j int) bool {
-	return r.Data[i].Meta.Probability > r.Data[j].Meta.Probability
+	return r[i].Meta["association"].(float32) > r[j].Meta["association"].(float32)
 }
 
 func (r Result) Swap(i, j int) {
-	r.Data[i], r.Data[j] = r.Data[j], r.Data[i]
+	r[i], r[j] = r[j], r[i]
 }
 
 // Obtain probability estimates from TF model
@@ -100,52 +84,52 @@ func (m Model) classify(input []string) (*tf.Tensor, error) {
 }
 
 // Gather results set
-func (m Model) predict(input []string) ([]Result, error) {
+func (m Model) predict(input []string) ([]core.Document, error) {
 
-	var results []Result = make([]Result, len(input))
+	var documents []core.Document = make([]core.Document, len(input))
 
 	// Obtain probabilities
 	predictions, err := m.classify(input)
 	if err != nil {
-		return results, err
+		return documents, err
 	}
 
 	// Iterate over each prediction (i.e., if bulk)
 	for i := 0; i < int(predictions.Shape()[0]); i += 1 {
 
-		// Result for the result set, including meta stats
-		var result Result = Result{
-			Data: make([]Class, len(classList)),
-			Meta: m.stats(predictions, i),
-		}
+		var result Result = make([]core.Resource, len(classList))
 
 		// Include class identifiers with probability estimates
 		for j, p := range predictions.Value().([][]float32)[i] {
-			var class = Class{
-				Type:       "product-service-codes",
+			var class = core.Resource{
+				Type:       classList[i].Type,
 				Identifier: classList[j].Identifier,
-				Meta:       &Meta{Probability: p},
+				Meta:       map[string]interface{}{"association": p},
 			}
-			result.Data[j] = class
+			result[j] = class
 		}
 
 		// Sort the classes in place, ordering by probability desc
 		sort.Stable(result)
 
 		// Rank
-		for k, _ := range result.Data {
-			result.Data[k].Meta.Rank = k + 1
+		for k, _ := range result {
+			result[k].Meta["rank"] = k + 1
 		}
 
 		// Add to results set
-		results[i] = result
+		documents[i] = core.Document{
+			Data: result,
+			Meta: m.stats(predictions, i),
+		}
+
 	}
 
-	return results, nil
+	return documents, nil
 }
 
 // Calculate meta statistics
-func (m Model) stats(p *tf.Tensor, idx int) map[string]float32 {
+func (m Model) stats(p *tf.Tensor, idx int) map[string]interface{} {
 
 	var gi, re, se float64
 
@@ -164,7 +148,7 @@ func (m Model) stats(p *tf.Tensor, idx int) map[string]float32 {
 	}
 
 	// 32-bit precision is more than sufficient for API
-	meta := map[string]float32{
+	meta := map[string]interface{}{
 		"gini-impurity":    censor(1.00 - gi),
 		"relative-entropy": censor(re),
 		"shannon-entropy":  censor(-se),
@@ -215,7 +199,7 @@ func predict(w http.ResponseWriter, r *http.Request) {
 	var (
 		buf     bytes.Buffer
 		content interface{}
-		request Request
+		request core.Document
 	)
 
 	start := time.Now()
@@ -231,8 +215,30 @@ func predict(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := request.AssertDataType(); err != nil {
+		handleError(w, http.StatusBadRequest)
+		return
+	}
+
+	input, ok := request.Data.(core.Resource)
+	if !ok {
+		handleError(w, http.StatusBadRequest)
+		return
+	}
+
+	att, ok := input.Attributes["raw"]
+	if !ok {
+		handleError(w, http.StatusBadRequest)
+		return
+	}
+
+	raw, ok := att.(string)
+	if !ok {
+		handleError(w, http.StatusBadRequest)
+	}
+
 	// Obtain predictions on the input
-	results, err := classifier.predict([]string{request.Input})
+	results, err := classifier.predict([]string{raw})
 	if err != nil {
 		stderr.Println(err)
 		handleError(w, http.StatusInternalServerError)
@@ -251,26 +257,6 @@ func predict(w http.ResponseWriter, r *http.Request) {
 		// Return results object
 		// JSON:API 1.0: https://jsonapi.org/
 		content = results[0]
-
-	default:
-
-		// Declare application/json mime in header
-		w.Header().Set("X-Content-Type-Options", "nosniff")
-		w.Header().Set("Content-Type", "application/json")
-
-		// Return results object
-		// {"classes":[{"id":string,"pr":float32},...]}
-		data := make([]map[string]interface{}, len(results[0].Data))
-		for i, class := range results[0].Data {
-			data[i] = map[string]interface{}{
-				"id": class.Identifier,
-				"pr": class.Meta.Probability,
-			}
-		}
-		content = map[string]interface{}{
-			"classes": data,
-			"meta":    results[0].Meta,
-		}
 
 	}
 
@@ -337,12 +323,20 @@ func main() {
 	}
 	file.Close()
 
-	var document struct {
-		Data []Class                `json:"data"`
-		Meta map[string]interface{} `json:"meta,omitempty"`
-	}
+	var document core.Document
 	json.Unmarshal(jsonBytes, &document)
-	classList = document.Data
+
+	if err := document.AssertDataType(); err != nil {
+		stderr.Fatal("error reading classes")
+		return
+	}
+
+	if collection, ok := document.Data.(core.Collection); !ok {
+		stderr.Fatal("error reading classes")
+		return
+	} else {
+		classList = collection
+	}
 
 	// Read in exported TF model
 	c, err := tf.LoadSavedModel("charCNN", []string{"Graph"}, nil)
