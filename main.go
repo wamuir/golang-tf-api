@@ -20,14 +20,12 @@ import (
 )
 
 const (
-	chars     = " abcdefghijklmnopqrstuvwxyz0123456789-,;.!?:'\"/\\|_@#$%^&*~`+-=<>()[]{}"
-	maxLength = 256
+	chars     = " !\"#$%&'()*+,-./0123456789:;<=>?@[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"
+	maxLength = 250
 )
 
 type (
-	Model struct {
-		*tf.SavedModel
-	}
+	Model  struct{ *tf.SavedModel }
 	Result []core.Resource
 )
 
@@ -55,7 +53,7 @@ func (r Result) Swap(i, j int) {
 func (m Model) classify(input []string) (*tf.Tensor, error) {
 
 	// Encode the string
-	encoded := make([][maxLength]float32, len(input))
+	encoded := make([][maxLength]int16, len(input))
 	for k, v := range input {
 		encoded[k] = encode(v)
 	}
@@ -63,21 +61,21 @@ func (m Model) classify(input []string) (*tf.Tensor, error) {
 	// Convert to a tensor
 	inputTensor, err := tf.NewTensor(encoded)
 	if err != nil {
-		return new(tf.Tensor), err
+		return nil, err
 	}
 
 	// Generate inferences from the model
 	result, err := m.Session.Run(
 		map[tf.Output]*tf.Tensor{
-			m.Graph.Operation("inputLayer").Output(0): inputTensor,
+			m.Graph.Operation("serving_default_inputLayer").Output(0): inputTensor,
 		},
 		[]tf.Output{
-			m.Graph.Operation("outputLayer/Softmax").Output(0),
+			m.Graph.Operation("StatefulPartitionedCall").Output(0),
 		},
 		nil,
 	)
 	if err != nil {
-		return new(tf.Tensor), err
+		return nil, err
 	}
 
 	return result[0], nil
@@ -172,9 +170,9 @@ func censor(f64 float64) float32 {
 }
 
 // Encode input text
-func encode(s string) [maxLength]float32 {
+func encode(s string) [maxLength]int16 {
 
-	var array [maxLength]float32
+	var array [maxLength]int16
 
 	// Lowercase and cast as array of runes
 	runes := []rune(strings.ToLower(s))
@@ -187,7 +185,7 @@ func encode(s string) [maxLength]float32 {
 	// Generate right-padded array of indices, in reverse
 	for i, r := range runes {
 		var pos int = len(runes) - (i + 1)
-		array[pos] = float32(strings.Index(chars, string(r)) + 1)
+		array[pos] = int16(strings.Index(chars, string(r)) + 1)
 	}
 
 	return array
@@ -339,7 +337,7 @@ func main() {
 	}
 
 	// Read in exported TF model
-	c, err := tf.LoadSavedModel("charCNN", []string{"Graph"}, nil)
+	c, err := tf.LoadSavedModel("charCNN", []string{"serve"}, nil)
 	if err != nil {
 		stderr.Fatal(err.Error())
 		return
