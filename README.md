@@ -1,26 +1,30 @@
 # golang-tf-api
 
+
+## About
+
 API for a character-level convolutional neural network, using a model
 exported from tensorflow. The API binds to port 5000 by default, and
-inferences can be obtained by calling `/predict` such as:
+inferences can be obtained by posting to `/predict`, optionally with
+a limit on the number of predicted classes to be returned, such as
+`/predict?page[limit]=10`.
+
+
+## application/json
 
 ```sh
-curl -X POST -H 'Accept: application/vnd.api+json' \
-     -H 'Content-Type: application/vnd.api+json' \
-     -d '{"data":{"type": "descriptions", "attributes":{"raw": "portal gun"}}}' \
-     -i 'http://localhost:5000/predict'
+curl -XPOST -d '{"input":"portal gun"}' -i http://localhost:5000/predict
 ```
 
-This returns classes and associated probability estimates, in the form of:
+This returns product service codes and probability estimates, such as:
 
 ```json
 {
-    "data": [
-        {"id":"string", "type":"string", "meta":{"weight":"float32", "rank":"int"}},
-        {"id":"string", "type":"string", "meta":{"weight":"float32", "rank":"int"}},
-        ...,
-        {"id":"string", "type":"string", "meta":{"weight":"float32", "rank":"int"}},
-    ]
+    "classes":[
+        {"id":"string","pr":"float32"},
+        {"id":"string","pr":"float32"},
+        {"id":"string","pr":"float32"}
+    ],
     "meta":{
         "gini-impurity":"float32",
         "relative-entropy":"float32",
@@ -29,5 +33,18 @@ This returns classes and associated probability estimates, in the form of:
 }
 ```
 
-With classes in the relevant classlist identified by `id` and sorted in descending
-order by corresponding probability (`weight`).
+With classes in the relevant classlist identified by `id` and sorted in
+descending order by corresponding probability (`pr`).
+
+
+
+## application/vnd.api+json
+
+The API will negotiate content for [JSON API](https://jsonapi.org).
+
+```sh
+curl -X POST -H 'Accept: application/vnd.api+json' \
+     -H 'Content-Type: application/vnd.api+json' \
+     -d '{"data":{"type": "descriptions", "attributes":{"raw": "portal gun"}}}' \
+     -i 'http://localhost:5000/predict'
+```
