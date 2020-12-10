@@ -40,7 +40,7 @@ descending order by corresponding probability (`pr`).
 
 ## application/vnd.api+json
 
-The API will negotiate content for [https://jsonapi.org/](JSON API).
+The API will negotiate content for [JSON API](https://jsonapi.org).
 
 ```sh
 curl -X POST -H 'Accept: application/vnd.api+json' \
