@@ -12,10 +12,10 @@ const tol = 1e-6
 
 func TestModelStats(t *testing.T) {
 
-	q, err := tf.NewTensor([][]float32{[]float32{float32(0.50), float32(0.50)}})
+	q, err := tf.NewTensor([][]float32{{float32(0.50), float32(0.50)}})
 	assert.Nil(t, err)
 
-	p, err := tf.NewTensor([][]float32{[]float32{float32(0.25), float32(0.75)}})
+	p, err := tf.NewTensor([][]float32{{float32(0.25), float32(0.75)}})
 	assert.Nil(t, err)
 
 	m := Model{nil, nil, q}
@@ -42,10 +42,10 @@ func TestModelStatsInfty(t *testing.T) {
 	a := float32(math.SmallestNonzeroFloat32)
 	b := float32(1 - math.SmallestNonzeroFloat32)
 
-	q, err := tf.NewTensor([][]float32{[]float32{a, b}})
+	q, err := tf.NewTensor([][]float32{{a, b}})
 	assert.Nil(t, err)
 
-	p, err := tf.NewTensor([][]float32{[]float32{b, a}})
+	p, err := tf.NewTensor([][]float32{{b, a}})
 	assert.Nil(t, err)
 
 	m := Model{nil, nil, q}
@@ -72,10 +72,10 @@ func TestModelStatsZero(t *testing.T) {
 	a := float32(0)
 	b := float32(1)
 
-	q, err := tf.NewTensor([][]float32{[]float32{a, b}})
+	q, err := tf.NewTensor([][]float32{{a, b}})
 	assert.Nil(t, err)
 
-	p, err := tf.NewTensor([][]float32{[]float32{b, a}})
+	p, err := tf.NewTensor([][]float32{{b, a}})
 	assert.Nil(t, err)
 
 	m := Model{nil, nil, q}
