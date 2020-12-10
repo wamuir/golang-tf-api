@@ -23,7 +23,6 @@ This returns product service codes and probability estimates, such as:
     "classes":[
         {"id":"string","pr":"float32"},
         {"id":"string","pr":"float32"},
-        ...,
         {"id":"string","pr":"float32"}
     ],
     "meta":{
