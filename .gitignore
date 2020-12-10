@@ -14,4 +14,4 @@ golang-tf-api
 # vendor/
 
 # Exported tensorflow model directory
-charCNN
+models/

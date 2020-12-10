@@ -1,0 +1,10 @@
+version: "3.8"
+services:
+  api:
+    build: "."
+    command: "-path=/models/latest"
+    ports: 
+      - "5000:5000"
+    restart: "always"
+    volumes:
+      - "./models:/models:ro"
