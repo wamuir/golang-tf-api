@@ -469,17 +469,19 @@ class Quantizer:
 
         padleft = self.padding == "left"
 
+        s = string[:self.input_length]
+
         arr = np.zeros(self.input_length, dtype=self.dtype)
 
         for idx in range(len(arr)):
             stridx = (
-                (idx + len(string) - self.input_length) if (padleft) else idx
+                (idx + len(s) - self.input_length) if (padleft) else idx
             )
             if (padleft) and (stridx < 0):
                 continue
-            if stridx >= len(string):
+            if stridx >= len(s):
                 break
-            char = string[-(stridx + 1)] if (self.reverse) else string[stridx]
+            char = s[-(stridx + 1)] if (self.reverse) else s[stridx]
             arr[idx] = self.char_map.get(char.lower(), 0)
 
         return arr
