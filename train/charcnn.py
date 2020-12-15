@@ -264,8 +264,8 @@ class HyperModel(kt.HyperModel):
         dens2 = tf.keras.layers.Dense(2 ** 11, activation="relu")(actv7)
         drop2 = tf.keras.layers.Dropout(0.5)(dens2)
         actv8 = tf.keras.layers.ReLU()(drop2)
-        dens3 = tf.keras.layers.Dense(self.class_len, name="outputLayer")(actv8)
-        soft1 = tf.keras.layers.Softmax()(dens3)
+        dens3 = tf.keras.layers.Dense(self.class_len)(actv8)
+        soft1 = tf.keras.layers.Softmax(name="outputLayer")(dens3)
 
         self.model = tf.keras.models.Model(inputs=visb1, outputs=soft1)
 
