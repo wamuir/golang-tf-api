@@ -383,10 +383,12 @@ class Quantizer:
         ------------------------------
         Construct a Quantizer object.
 
-         reverse:  flag to reverse the characters (bool)
-         padding:  "left" or "right" for zero-based padding up to INPUT_LENGTH
-                   or None, for no padding (str)
-         dtype:    the dtype of the array to return (np.dtype)
+         alphabet:      list of symbols to be encoded (string)
+         input_length:  the maximum number of symbols to encode (int)
+         reverse:       flag to reverse the characters (bool)
+         padding:       "left" or "right" for zero-based padding up to
+                        INPUT_LENGTH or None, for no padding (string)
+         dtype:         the dtype of the array to return (np.dtype)
         ------------------------------
         """
 
