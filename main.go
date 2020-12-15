@@ -18,7 +18,7 @@ import (
 )
 
 // command line flag for model path
-var mpath *string = flag.String("path", "", "path to model directory")
+var mpath *string = flag.String("path", "models/latest", "path to model directory")
 
 // environment
 type env struct {
