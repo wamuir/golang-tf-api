@@ -1,10 +1,28 @@
+ARG BAZEL_OPTS="--config=opt"
+ARG BAZEL_VERS="3.7.0"
 ARG PROTOBUF_VERS="3.14.0"
 ARG TENSORFLOW_VERS="2.4.0"
 
 FROM golang:1.15-buster
 
+ARG BAZEL_OPTS
+ARG BAZEL_VERS
 ARG PROTOBUF_VERS
 ARG TENSORFLOW_VERS
+
+RUN apt-get update && apt-get -y install \
+    build-essential \
+    libpython3-dev \
+    openjdk-11-jdk-headless \
+    python3 \
+    python3-venv \
+    swig
+
+
+# fetch and install bazel
+RUN curl -fLSs https://github.com/bazelbuild/bazel/releases/download/${BAZEL_VERS}/bazel-${BAZEL_VERS}-linux-`uname -m` \
+    > /usr/local/bin/bazel
+RUN chmod +x /usr/local/bin/bazel
 
 # fetch and install protoc
 RUN curl -fLSs -o /opt/protoc.zip \
@@ -12,13 +30,8 @@ RUN curl -fLSs -o /opt/protoc.zip \
     && python -m zipfile -e /opt/protoc.zip /usr/local \
     && chmod +x /usr/local/bin/protoc
 
-# fetch and install tensorflow c libs
-RUN curl -fLSs -o /opt/libtensorflow.tar.gz \
-    https://storage.googleapis.com/tensorflow/libtensorflow/libtensorflow-cpu-linux-`uname -m`-${TENSORFLOW_VERS}.tar.gz \
-    && tar xz -C /usr/local -f /opt/libtensorflow.tar.gz
-
-# link shared libs
-RUN ldconfig
+# build venv and install numpy 
+RUN python3 -m venv /opt/venv && . /opt/venv/bin/activate && pip3 install --upgrade pip wheel && pip3 install numpy
 
 # fetch tensorflow source
 RUN mkdir -p ${GOPATH}/src/github.com/tensorflow
@@ -26,6 +39,15 @@ RUN curl -fLSs -o /opt/tensorflow.tar.gz \
     https://github.com/tensorflow/tensorflow/archive/v${TENSORFLOW_VERS}.tar.gz \
     && tar -xz -C ${GOPATH}/src/github.com/tensorflow -f /opt/tensorflow.tar.gz
 RUN mv ${GOPATH}/src/github.com/tensorflow/tensorflow-${TENSORFLOW_VERS} ${GOPATH}/src/github.com/tensorflow/tensorflow
+
+# build and install c lib for tensorflow
+WORKDIR ${GOPATH}/src/github.com/tensorflow/tensorflow
+RUN . /opt/venv/bin/activate && ./configure 
+RUN . /opt/venv/bin/activate && bazel build ${BAZEL_OPTS} //tensorflow/tools/lib_package:libtensorflow.tar.gz
+RUN tar xz -C /usr/local -f bazel-bin/tensorflow/tools/lib_package/libtensorflow.tar.gz
+
+# link shared libs
+RUN ldconfig
 
 # generate and test 
 RUN go generate github.com/tensorflow/tensorflow/tensorflow/go/op
@@ -45,7 +67,7 @@ RUN CGO_ENABLED=1 GOOS=linux go build -o /go/bin/golang-tf-api github.com/wamuir
 FROM debian:buster-slim
 
 # install c lib for tensorflow
-COPY --from=0 /opt/libtensorflow.tar.gz /opt/libtensorflow.tar.gz
+COPY --from=0 /go/src/github.com/tensorflow/tensorflow/bazel-bin/tensorflow/tools/lib_package/libtensorflow.tar.gz /opt/libtensorflow.tar.gz
 RUN tar xz -C /usr/local -f /opt/libtensorflow.tar.gz && rm /opt/libtensorflow.tar.gz
 
 # link shared libs
